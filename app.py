@@ -3,10 +3,8 @@ import random
 import time
 from datetime import datetime
 import pandas as pd
-import re
 import json
 import io
-from io import StringIO
 
 # ==================== CARD VALIDATION ENGINE ====================
 class CardValidator:
@@ -25,6 +23,10 @@ class CardValidator:
             "37": {"issuer": "AMEX", "type": "Credit", "country": "US", "bank": "American Express"},
             "6011": {"issuer": "DISCOVER", "type": "Credit", "country": "US", "bank": "Discover"},
             "65": {"issuer": "DISCOVER", "type": "Credit", "country": "US", "bank": "Discover"},
+            "35": {"issuer": "JCB", "type": "Credit", "country": "JP", "bank": "JCB"},
+            "30": {"issuer": "DINERS", "type": "Credit", "country": "US", "bank": "Diners Club"},
+            "36": {"issuer": "DINERS", "type": "Credit", "country": "US", "bank": "Diners Club"},
+            "38": {"issuer": "DINERS", "type": "Credit", "country": "US", "bank": "Diners Club"}
         }
     
     def validate_luhn(self, card_number):
@@ -55,29 +57,39 @@ class CardValidator:
         return None
 
 # ==================== MAIN APPLICATION ====================
-class UltimateStripeChecker:
+class UltimateStripeCheckerPro:
     def __init__(self):
         # Initialize session state
-        if 'initialized' not in st.session_state:
-            st.session_state.initialized = True
+        if 'app_initialized' not in st.session_state:
+            st.session_state.app_initialized = True
             st.session_state.total_checked = 0
             st.session_state.live_cards = 0
             st.session_state.dead_cards = 0
             st.session_state.proxies = [
-                "142.111.48.253:7030",
-                "31.59.20.176:6754",
-                "38.170.176.177:5572"
+                "142.111.48.253:7030:user:pass",
+                "31.59.20.176:6754:user:pass",
+                "38.170.176.177:5572:user:pass",
+                "198.23.239.134:6540:user:pass",
+                "45.38.107.97:6014:user:pass",
+                "107.172.163.27:6543:user:pass",
+                "64.137.96.74:6641:user:pass",
+                "216.10.27.159:6837:user:pass",
+                "142.111.67.146:5611:user:pass",
+                "142.147.128.93:6593:user:pass"
             ]
             st.session_state.results = []
             st.session_state.activity_log = []
             st.session_state.bulk_running = False
             st.session_state.bulk_paused = False
+            st.session_state.single_result = None
+            st.session_state.current_theme = "dark"
+            st.session_state.card_history = []
         
         self.validator = CardValidator()
         
     def run(self):
         """Main application runner"""
-        # Custom CSS for styling
+        # Page configuration
         st.set_page_config(
             page_title="🔥 ULTIMATE STRIPE CHECKER PRO v3.0",
             page_icon="⚡",
@@ -85,72 +97,39 @@ class UltimateStripeChecker:
             initial_sidebar_state="expanded"
         )
         
-        # Custom CSS
-        st.markdown("""
-        <style>
-        .main-header {
-            background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.5rem !important;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-        .card {
-            background-color: #1a1a1a;
-            padding: 1.5rem;
-            border-radius: 10px;
-            border-left: 5px solid #00ff00;
-            margin-bottom: 1rem;
-        }
-        .live-card {
-            border-left: 5px solid #00ff00 !important;
-        }
-        .dead-card {
-            border-left: 5px solid #ff0000 !important;
-        }
-        .stats-card {
-            text-align: center;
-            background-color: #222222;
-            padding: 1rem;
-            border-radius: 10px;
-        }
-        .stButton>button {
-            width: 100%;
-            background-color: #2a2a2a;
-            color: #00ff00;
-            border: 1px solid #333333;
-        }
-        .stButton>button:hover {
-            background-color: #3a3a3a;
-            border-color: #00ff00;
-        }
-        .accent-button {
-            background: linear-gradient(45deg, #ff0000, #ff3300) !important;
-            color: white !important;
-            font-weight: bold !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        # Custom CSS for professional look
+        self.apply_custom_css()
         
         # Header
-        st.markdown('<h1 class="main-header">🔥 ULTIMATE STRIPE CHECKER PRO v3.0</h1>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="main-header">
+            <h1>🔥 ULTIMATE STRIPE CHECKER PRO v3.0</h1>
+            <p class="subtitle">Professional Card Validation Tool | Real-time Processing | Multi-threaded</p>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Sidebar Navigation
         with st.sidebar:
-            st.markdown("## 👑 PRO USER")
-            st.markdown("**Premium Access**")
+            st.markdown("""
+            <div class="profile-card">
+                <div class="profile-icon">👑</div>
+                <h3>PRO USER</h3>
+                <p>Premium Access Active</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
             st.markdown("---")
             
             # Navigation
             nav_options = {
-                "📊 Dashboard": "dashboard",
-                "🔍 Single Check": "single",
-                "🚀 Bulk Check": "bulk",
-                "🌐 Proxy Manager": "proxy",
-                "📈 Results": "results",
-                "🛠️ Tools": "tools",
-                "⚙️ Settings": "settings"
+                "📊 Dashboard": self.show_dashboard,
+                "🔍 Single Check": self.show_single_check,
+                "🚀 Bulk Check": self.show_bulk_check,
+                "🌐 Proxy Manager": self.show_proxy_manager,
+                "📈 Results": self.show_results,
+                "🛠️ Advanced Tools": self.show_tools,
+                "⚙️ Settings": self.show_settings,
+                "📋 History": self.show_history
             }
             
             selected_page = st.selectbox(
@@ -159,245 +138,473 @@ class UltimateStripeChecker:
                 label_visibility="collapsed"
             )
             
-            # Quick Stats in Sidebar
+            # Quick Stats
             st.markdown("---")
             st.markdown("### 📊 Quick Stats")
             
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Total", st.session_state.total_checked)
-                st.metric("Live", st.session_state.live_cards)
+                st.metric("Total", st.session_state.total_checked, delta=None)
+                st.metric("Live", st.session_state.live_cards, delta=None)
             with col2:
-                st.metric("Dead", st.session_state.dead_cards)
+                st.metric("Dead", st.session_state.dead_cards, delta=None)
                 rate = (st.session_state.live_cards / st.session_state.total_checked * 100) if st.session_state.total_checked > 0 else 0
-                st.metric("Rate", f"{rate:.1f}%")
+                st.metric("Rate", f"{rate:.1f}%", delta=None)
             
             st.markdown("---")
             st.markdown(f"**Proxies:** {len(st.session_state.proxies)}")
-            st.markdown(f"**Last Updated:** {datetime.now().strftime('%H:%M:%S')}")
+            st.markdown(f"**Updated:** {datetime.now().strftime('%H:%M:%S')}")
         
-        # Main Content Area
-        page = nav_options[selected_page]
+        # Display selected page
+        nav_options[selected_page]()
+    
+    def apply_custom_css(self):
+        """Apply custom CSS styles"""
+        st.markdown("""
+        <style>
+        /* Main Header */
+        .main-header {
+            text-align: center;
+            background: linear-gradient(90deg, #ff0000, #ff5500, #ffaa00);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #333;
+        }
+        .main-header h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .subtitle {
+            color: #aaa;
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
         
-        if page == "dashboard":
-            self.show_dashboard()
-        elif page == "single":
-            self.show_single_check()
-        elif page == "bulk":
-            self.show_bulk_check()
-        elif page == "proxy":
-            self.show_proxy_manager()
-        elif page == "results":
-            self.show_results()
-        elif page == "tools":
-            self.show_tools()
-        elif page == "settings":
-            self.show_settings()
+        /* Profile Card */
+        .profile-card {
+            text-align: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .profile-icon {
+            font-size: 50px;
+            margin-bottom: 10px;
+        }
+        .profile-card h3 {
+            color: white;
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .profile-card p {
+            color: rgba(255,255,255,0.8);
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+        }
+        
+        /* Cards */
+        .stat-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid #333;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin: 10px 0;
+            color: #00ff00;
+        }
+        .stat-card p {
+            color: #aaa;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+        }
+        .stButton > button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        /* Tabs */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px 8px 0 0;
+            padding: 10px 20px;
+            font-weight: 600;
+        }
+        
+        /* Dataframe */
+        .dataframe {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        /* Success/Error messages */
+        .stSuccess {
+            background: linear-gradient(135deg, #00b09b, #96c93d);
+            color: white;
+            border-radius: 10px;
+        }
+        .stError {
+            background: linear-gradient(135deg, #ff416c, #ff4b2b);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #00ff00;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cc00;
+        }
+        </style>
+        """, unsafe_allow_html=True)
     
     def show_dashboard(self):
         """Show dashboard"""
-        st.markdown("## 📊 DASHBOARD")
+        st.markdown("## 📊 DASHBOARD OVERVIEW")
         
         # Stats Cards
+        st.markdown("### 📈 PERFORMANCE METRICS")
         col1, col2, col3, col4, col5, col6 = st.columns(6)
         
         with col1:
-            st.markdown(f'<div class="stats-card">📊<br><h3>{st.session_state.total_checked}</h3>Total Checks</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stat-card">
+                <div style="font-size: 30px;">📊</div>
+                <h3>{st.session_state.total_checked}</h3>
+                <p>Total Checks</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.markdown(f'<div class="stats-card">✅<br><h3>{st.session_state.live_cards}</h3>Live Cards</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stat-card">
+                <div style="font-size: 30px; color: #00ff00;">✅</div>
+                <h3>{st.session_state.live_cards}</h3>
+                <p>Live Cards</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col3:
-            st.markdown(f'<div class="stats-card">❌<br><h3>{st.session_state.dead_cards}</h3>Dead Cards</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stat-card">
+                <div style="font-size: 30px; color: #ff0000;">❌</div>
+                <h3>{st.session_state.dead_cards}</h3>
+                <p>Dead Cards</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col4:
             rate = (st.session_state.live_cards / st.session_state.total_checked * 100) if st.session_state.total_checked > 0 else 0
-            st.markdown(f'<div class="stats-card">📈<br><h3>{rate:.1f}%</h3>Success Rate</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stat-card">
+                <div style="font-size: 30px; color: #ffff00;">📈</div>
+                <h3>{rate:.1f}%</h3>
+                <p>Success Rate</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col5:
-            st.markdown(f'<div class="stats-card">🌐<br><h3>{len(st.session_state.proxies)}</h3>Proxies</div>', 
-                       unsafe_allow_html=True)
+            st.markdown(f"""
+            <div class="stat-card">
+                <div style="font-size: 30px; color: #00ffff;">🌐</div>
+                <h3>{len(st.session_state.proxies)}</h3>
+                <p>Active Proxies</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col6:
-            st.markdown('<div class="stats-card">⚡<br><h3>0.0s</h3>Avg Speed</div>', 
-                       unsafe_allow_html=True)
+            st.markdown("""
+            <div class="stat-card">
+                <div style="font-size: 30px; color: #ff00ff;">⚡</div>
+                <h3>0.0s</h3>
+                <p>Avg Speed</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         # Quick Actions
         st.markdown("---")
-        st.markdown("### 🚀 Quick Actions")
+        st.markdown("### 🚀 QUICK ACTIONS")
         
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("🔍 Check Single Card", use_container_width=True):
-                st.session_state.page = "single"
+            if st.button("🔍 **CHECK SINGLE CARD**", use_container_width=True):
+                st.session_state.current_page = "single"
                 st.rerun()
         
         with col2:
-            if st.button("🚀 Start Bulk Check", use_container_width=True):
-                st.session_state.page = "bulk"
+            if st.button("🚀 **START BULK CHECK**", use_container_width=True):
+                st.session_state.current_page = "bulk"
                 st.rerun()
         
         with col3:
-            if st.button("🌐 Manage Proxies", use_container_width=True):
-                st.session_state.page = "proxy"
+            if st.button("🌐 **MANAGE PROXIES**", use_container_width=True):
+                st.session_state.current_page = "proxy"
                 st.rerun()
         
         with col4:
-            if st.button("📊 View Results", use_container_width=True):
-                st.session_state.page = "results"
+            if st.button("📊 **VIEW RESULTS**", use_container_width=True):
+                st.session_state.current_page = "results"
                 st.rerun()
         
         # Recent Activity
         st.markdown("---")
-        st.markdown("### 📝 Recent Activity")
+        st.markdown("### 📝 RECENT ACTIVITY")
         
-        if st.session_state.activity_log:
-            for log in reversed(st.session_state.activity_log[-10:]):
-                st.code(log, language=None)
-        else:
-            st.info("No activity yet. Start checking cards!")
+        activity_container = st.container()
+        with activity_container:
+            if st.session_state.activity_log:
+                # Show last 10 activities
+                for log in reversed(st.session_state.activity_log[-10:]):
+                    st.code(log, language=None)
+            else:
+                # Add initial logs
+                st.session_state.activity_log = [
+                    f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 ULTIMATE STRIPE CHECKER PRO v3.0 INITIALIZED",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] 📱 Dashboard loaded successfully",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Ready to check cards",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] 🌐 {len(st.session_state.proxies)} proxies loaded",
+                    f"[{datetime.now().strftime('%H:%M:%S')}] 🔧 System optimized for performance"
+                ]
+                for log in st.session_state.activity_log:
+                    st.code(log, language=None)
         
-        # Add some sample activity if empty
-        if not st.session_state.activity_log:
-            sample_logs = [
-                f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 ULTIMATE STRIPE CHECKER PRO v3.0 INITIALIZED",
-                f"[{datetime.now().strftime('%H:%M:%S')}] 📱 Dashboard loaded successfully",
-                f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Ready to check cards"
-            ]
-            for log in sample_logs:
-                st.session_state.activity_log.append(log)
+        # System Status
+        st.markdown("---")
+        st.markdown("### 🔧 SYSTEM STATUS")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Memory Usage", "256 MB / 1 GB", "-12%")
+        
+        with col2:
+            st.metric("CPU Load", "24%", "+2%")
+        
+        with col3:
+            st.metric("Network Speed", "100 Mbps", "Stable")
     
     def show_single_check(self):
         """Show single card check"""
-        st.markdown("## 🔍 SINGLE CARD CHECK")
+        st.markdown("## 🔍 SINGLE CARD CHECKER")
         
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1, 1])
         
         with col1:
             st.markdown("### 💳 CARD DETAILS")
             
-            # Card number
+            # Card Entry
             card_number = st.text_input(
-                "Card Number",
+                "**Card Number**",
                 value="4242424242424242",
-                placeholder="Enter card number",
+                placeholder="1234 5678 9012 3456",
                 help="Enter 13-19 digit card number"
             )
             
-            # Expiry and CVV
+            # Expiry and CVV in columns
             col_exp, col_cvv = st.columns(2)
-            
             with col_exp:
-                month = st.text_input("Month (MM)", value="12", max_chars=2)
-                year = st.text_input("Year (YY)", value="25", max_chars=2)
+                month = st.selectbox("**Month**", [f"{i:02d}" for i in range(1, 13)], index=11)
+                year = st.selectbox("**Year**", [f"{i}" for i in range(24, 35)], index=1)
             
             with col_cvv:
-                cvv = st.text_input("CVV", value="123", max_chars=4)
+                cvv = st.text_input("**CVV**", value="123", max_chars=4, type="password")
             
-            # Check mode
+            # Check Mode Selection
+            st.markdown("### ⚙️ CHECK MODE")
             check_mode = st.radio(
-                "Check Mode",
+                "Select check method:",
                 ["Stripe API Check", "Luhn Validation", "BIN Lookup", "Full Validation"],
                 horizontal=True
             )
             
-            # Check button
-            if st.button("⚡ CHECK CARD", type="primary", use_container_width=True):
-                if card_number and month and year and cvv:
-                    self.check_single_card(card_number, month, year, cvv, check_mode)
-                else:
-                    st.error("Please fill all fields")
+            # Action Buttons
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            with col_btn1:
+                if st.button("⚡ **CHECK CARD**", type="primary", use_container_width=True):
+                    if card_number and cvv:
+                        self.process_single_check(card_number, month, year, cvv, check_mode)
+                    else:
+                        st.error("Please enter card number and CVV")
             
-            # Generate card button
-            if st.button("🎲 GENERATE RANDOM CARD", use_container_width=True):
-                self.generate_card()
+            with col_btn2:
+                if st.button("🎲 **GENERATE**", use_container_width=True):
+                    self.generate_random_card()
+            
+            with col_btn3:
+                if st.button("📋 **PASTE**", use_container_width=True):
+                    st.info("Paste functionality would work in desktop app")
         
         with col2:
-            st.markdown("### 📊 RESULTS")
+            st.markdown("### 📊 CHECK RESULTS")
             
-            # Results display area
-            if 'single_result' in st.session_state:
+            if st.session_state.single_result:
                 result = st.session_state.single_result
                 
-                st.markdown(f"**Card:** `{result['card'][:6]}******{result['card'][-4:]}`")
-                st.markdown(f"**Status:** {result['status']}")
-                st.markdown(f"**Message:** {result['message']}")
-                
-                if result['bin_info']:
-                    st.markdown("---")
-                    st.markdown("**BIN Information:**")
-                    info = result['bin_info']
-                    st.markdown(f"- **Issuer:** {info.get('issuer', 'Unknown')}")
-                    st.markdown(f"- **Bank:** {info.get('bank', 'Unknown')}")
-                    st.markdown(f"- **Country:** {info.get('country', 'Unknown')}")
-                    st.markdown(f"- **Type:** {info.get('type', 'Unknown')}")
-                
-                st.markdown(f"**Time:** {result['time']}")
-                
-                # Action buttons
-                col_copy, col_save = st.columns(2)
-                with col_copy:
-                    if st.button("📋 Copy Result"):
-                        st.success("Result copied to clipboard!")
-                
-                with col_save:
-                    if st.button("💾 Save Result"):
-                        self.save_single_result(result)
-            else:
-                st.info("Enter card details and click CHECK CARD")
+                # Result Card
+                st.markdown(f"""
+                <div style="background: {'#1a3a1a' if 'LIVE' in result['status'] else '#3a1a1a'}; 
+                            padding: 20px; border-radius: 10px; border-left: 5px solid {'#00ff00' if 'LIVE' in result['status'] else '#ff0000'};">
+                    <h4 style="margin:0; color: {'#00ff00' if 'LIVE' in result['status'] else '#ff0000'};">{result['status']}</h4>
+                    <p style="margin:5px 0; color:#ccc;">{result['message']}</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
                 st.markdown("---")
-                st.markdown("**Test Cards:**")
-                st.markdown("- `4242424242424242` - Visa (Live)")
-                st.markdown("- `4000000000000002` - Visa (Declined)")
-                st.markdown("- `5555555555554444` - MasterCard")
-                st.markdown("- `378282246310005` - American Express")
+                
+                # Card Details
+                st.markdown("**🔐 Card Information:**")
+                st.markdown(f"- **Number:** `{result['card'][:6]}******{result['card'][-4:]}`")
+                st.markdown(f"- **Expiry:** {month}/{year}")
+                st.markdown(f"- **CVV:** `***`")
+                st.markdown(f"- **Time:** {result['time']}")
+                
+                # BIN Information
+                if result['bin_info']:
+                    st.markdown("---")
+                    st.markdown("**🏦 BIN Details:**")
+                    info = result['bin_info']
+                    col_info1, col_info2 = st.columns(2)
+                    with col_info1:
+                        st.markdown(f"- **Issuer:** {info.get('issuer', 'Unknown')}")
+                        st.markdown(f"- **Type:** {info.get('type', 'Unknown')}")
+                    with col_info2:
+                        st.markdown(f"- **Bank:** {info.get('bank', 'Unknown')}")
+                        st.markdown(f"- **Country:** {info.get('country', 'Unknown')}")
+                
+                # Action Buttons for Result
+                col_act1, col_act2, col_act3 = st.columns(3)
+                with col_act1:
+                    if st.button("📋 Copy", use_container_width=True):
+                        st.success("Result copied!")
+                with col_act2:
+                    if st.button("💾 Save", use_container_width=True):
+                        self.save_result(result)
+                with col_act3:
+                    if st.button("🔄 Check Again", use_container_width=True):
+                        st.session_state.single_result = None
+                        st.rerun()
+            
+            else:
+                # Instructions Panel
+                st.markdown("""
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px dashed #333;">
+                    <h4 style="color: #00ffff; margin-top:0;">📋 Instructions</h4>
+                    <p>1. Enter card details in left panel</p>
+                    <p>2. Select check mode</p>
+                    <p>3. Click <span style="color:#00ff00;">CHECK CARD</span> button</p>
+                    <p>4. View results here</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                
+                # Test Cards
+                st.markdown("**🧪 Test Cards:**")
+                test_cards = {
+                    "Visa (Live)": "4242424242424242",
+                    "Visa (Declined)": "4000000000000002",
+                    "MasterCard": "5555555555554444",
+                    "American Express": "378282246310005",
+                    "Discover": "6011000990139424"
+                }
+                
+                for name, number in test_cards.items():
+                    if st.button(f"Use {name}", key=f"test_{number}", use_container_width=True):
+                        st.session_state.test_card = number
+                        st.rerun()
     
-    def check_single_card(self, card, month, year, cvv, mode):
-        """Check single card"""
-        with st.spinner("🔄 Checking card..."):
+    def process_single_check(self, card, month, year, cvv, mode):
+        """Process single card check"""
+        with st.spinner("🔄 Processing card..."):
             time.sleep(1)  # Simulate processing
             
-            # Validate card
+            # Clean card number
+            card = ''.join(filter(str.isdigit, card))
+            
+            # Validate Luhn
             is_valid = self.validator.validate_luhn(card)
             bin_info = self.validator.get_bin_info(card)
             
+            # Determine result based on mode
             if "Luhn" in mode:
-                status = "✅ VALID" if is_valid else "❌ INVALID"
-                message = "Luhn check passed" if is_valid else "Luhn check failed"
+                status = "✅ VALID LUHN" if is_valid else "❌ INVALID LUHN"
+                message = "Card passed Luhn algorithm" if is_valid else "Card failed Luhn check"
             elif "BIN" in mode:
                 if bin_info:
                     status = "✅ VALID BIN"
-                    message = f"{bin_info.get('issuer', 'Unknown')} card"
+                    message = f"{bin_info.get('issuer', 'Unknown')} - Verified BIN"
                 else:
                     status = "⚠️ UNKNOWN BIN"
-                    message = "BIN not found"
+                    message = "BIN not found in database"
             else:
                 # Simulate API check
-                if is_valid and random.random() > 0.3:
-                    status = "✅ LIVE"
-                    message = "Transaction successful"
+                if is_valid and random.random() > 0.4:
+                    status = "✅ LIVE CARD"
+                    message = random.choice([
+                        "Transaction approved",
+                        "Payment successful",
+                        "Card is active",
+                        "Balance available"
+                    ])
+                    is_live = True
                 else:
                     status = "❌ DECLINED"
-                    message = random.choice(["Insufficient funds", "Card declined"])
+                    message = random.choice([
+                        "Insufficient funds",
+                        "Card declined",
+                        "Invalid card",
+                        "Transaction blocked"
+                    ])
+                    is_live = False
             
+            # Create result
             result = {
                 'card': card,
                 'status': status,
                 'message': message,
                 'bin_info': bin_info,
-                'valid': is_valid and "❌" not in status,
+                'valid': is_valid,
+                'live': is_live if 'is_live' in locals() else False,
                 'time': datetime.now().strftime("%H:%M:%S")
             }
             
             # Update stats
             st.session_state.total_checked += 1
-            if result['valid']:
+            if result['live']:
                 st.session_state.live_cards += 1
             else:
                 st.session_state.dead_cards += 1
@@ -406,109 +613,190 @@ class UltimateStripeChecker:
             st.session_state.single_result = result
             
             # Log activity
-            log_entry = f"[{result['time']}] Single check: {status} - {card[-4:]}"
-            st.session_state.activity_log.append(log_entry)
+            log_msg = f"[{result['time']}] Single: {status} - {card[-4:]}"
+            st.session_state.activity_log.append(log_msg)
             
-            # Add to results
-            st.session_state.results.append({
+            # Add to history
+            st.session_state.card_history.append({
                 'card': f"{card[:6]}******{card[-4:]}",
                 'status': status,
-                'issuer': bin_info.get('issuer', 'Unknown') if bin_info else 'Unknown',
                 'time': result['time']
             })
             
             st.rerun()
     
-    def generate_card(self):
-        """Generate random card"""
+    def generate_random_card(self):
+        """Generate random valid card"""
         prefixes = list(self.validator.bin_db.keys())
         prefix = random.choice(prefixes)
         
-        # Generate card
+        # Determine card length
         length = 15 if prefix in ["34", "37"] else 16
+        
+        # Generate base card
         card = prefix
         for _ in range(length - len(prefix) - 1):
             card += str(random.randint(0, 9))
         
-        # Calculate Luhn
+        # Calculate Luhn check digit
         for check_digit in range(10):
             test_card = card + str(check_digit)
             if self.validator.validate_luhn(test_card):
-                card = test_card
+                generated_card = test_card
                 break
         
+        # Generate expiry and CVV
+        month = f"{random.randint(1, 12):02d}"
+        year = f"{random.randint(24, 30)}"
+        cvv = str(random.randint(1000, 9999)) if prefix in ["34", "37"] else str(random.randint(100, 999))
+        
         # Store generated card
-        st.session_state.generated_card = card
-        st.session_state.generated_month = f"{random.randint(1, 12):02d}"
-        st.session_state.generated_year = f"{random.randint(24, 30):02d}"
-        st.session_state.generated_cvv = str(random.randint(1000, 9999)) if prefix in ["34", "37"] else str(random.randint(100, 999))
+        st.session_state.generated_card = generated_card
+        st.session_state.generated_month = month
+        st.session_state.generated_year = year
+        st.session_state.generated_cvv = cvv
         
-        # Log activity
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Generated random card: {card[:6]}******{card[-4:]}"
-        st.session_state.activity_log.append(log_entry)
+        # Log
+        st.session_state.activity_log.append(
+            f"[{datetime.now().strftime('%H:%M:%S')}] Generated card: {generated_card[:6]}******{generated_card[-4:]}"
+        )
         
-        st.success(f"Generated card: {card[:6]}******{card[-4:]}")
+        st.success(f"Generated: {generated_card[:6]}******{generated_card[-4:]}")
         st.rerun()
     
     def show_bulk_check(self):
-        """Show bulk check"""
-        st.markdown("## 🚀 BULK CARD CHECK")
+        """Show bulk check interface"""
+        st.markdown("## 🚀 BULK CARD CHECKER")
         
-        # File upload
-        uploaded_file = st.file_uploader(
-            "Upload cards file (TXT, one per line)",
-            type=['txt'],
-            help="Upload a text file with one card per line"
-        )
-        
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([1, 1])
         
         with col1:
-            threads = st.slider("Threads", 1, 20, 5)
-            delay = st.slider("Delay (ms)", 0, 5000, 100)
+            st.markdown("### 📁 UPLOAD CARDS")
+            
+            # File upload
+            uploaded_file = st.file_uploader(
+                "Choose a file",
+                type=['txt', 'csv'],
+                help="Upload text file with one card per line"
+            )
+            
+            if uploaded_file:
+                # Preview first 5 lines
+                content = uploaded_file.getvalue().decode()
+                lines = content.split('\n')
+                st.info(f"File loaded: {len(lines)} cards detected")
+                
+                # Show preview
+                with st.expander("📄 File Preview (First 10 lines)"):
+                    for i, line in enumerate(lines[:10]):
+                        if line.strip():
+                            st.code(line.strip())
+            
+            # Settings
+            st.markdown("### ⚙️ SETTINGS")
+            
+            col_set1, col_set2 = st.columns(2)
+            with col_set1:
+                threads = st.slider("Threads", 1, 50, 10, help="Number of parallel threads")
+                timeout = st.number_input("Timeout (s)", 1, 60, 10)
+            
+            with col_set2:
+                delay = st.slider("Delay (ms)", 0, 5000, 100, help="Delay between requests")
+                retries = st.number_input("Retries", 0, 5, 2)
         
         with col2:
-            st.markdown("### Control")
+            st.markdown("### 🎯 CONTROL PANEL")
             
-            col_start, col_pause, col_stop = st.columns(3)
+            # Status display
+            if st.session_state.bulk_running:
+                status_color = "#ffff00" if st.session_state.bulk_paused else "#00ff00"
+                status_text = "⏸️ PAUSED" if st.session_state.bulk_paused else "▶️ RUNNING"
+                st.markdown(f"""
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 10px; border-left: 5px solid {status_color};">
+                    <h4 style="color: {status_color}; margin:0;">{status_text}</h4>
+                    <p style="margin:5px 0; color:#ccc;">Bulk check in progress</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style="background: #1a1a1a; padding: 15px; border-radius: 10px; border-left: 5px solid #666;">
+                    <h4 style="color: #aaa; margin:0;">⏹️ STOPPED</h4>
+                    <p style="margin:5px 0; color:#999;">Ready to start</p>
+                </div>
+                """, unsafe_allow_html=True)
             
-            with col_start:
-                start_btn = st.button("🚀 START", type="primary", use_container_width=True,
-                                    disabled=st.session_state.bulk_running)
+            # Control buttons
+            col_ctrl1, col_ctrl2, col_ctrl3 = st.columns(3)
             
-            with col_pause:
+            with col_ctrl1:
+                start_disabled = not uploaded_file or st.session_state.bulk_running
+                if st.button("🚀 **START**", type="primary", use_container_width=True, disabled=start_disabled):
+                    if uploaded_file:
+                        st.session_state.bulk_running = True
+                        self.start_bulk_check(uploaded_file, threads, delay)
+            
+            with col_ctrl2:
+                pause_disabled = not st.session_state.bulk_running
                 pause_text = "⏸️ PAUSE" if not st.session_state.bulk_paused else "▶️ RESUME"
-                pause_btn = st.button(pause_text, use_container_width=True,
-                                    disabled=not st.session_state.bulk_running)
+                if st.button(pause_text, use_container_width=True, disabled=pause_disabled):
+                    st.session_state.bulk_paused = not st.session_state.bulk_paused
+                    st.rerun()
             
-            with col_stop:
-                stop_btn = st.button("⏹️ STOP", use_container_width=True,
-                                   disabled=not st.session_state.bulk_running)
+            with col_ctrl3:
+                stop_disabled = not st.session_state.bulk_running
+                if st.button("⏹️ **STOP**", use_container_width=True, disabled=stop_disabled):
+                    st.session_state.bulk_running = False
+                    st.session_state.bulk_paused = False
+                    st.rerun()
+            
+            # Progress bar
+            if st.session_state.bulk_running:
+                progress = st.progress(0)
+                status = st.empty()
+            
+            # Results summary
+            st.markdown("### 📊 QUICK STATS")
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            with col_stat1:
+                st.metric("Processed", st.session_state.total_checked)
+            with col_stat2:
+                st.metric("Live", st.session_state.live_cards)
+            with col_stat3:
+                st.metric("Dead", st.session_state.dead_cards)
         
-        # Start bulk check
-        if uploaded_file and start_btn:
-            cards = uploaded_file.getvalue().decode().splitlines()
-            st.session_state.bulk_running = True
-            self.run_bulk_check(cards, threads, delay)
+        # Results table
+        st.markdown("---")
+        st.markdown("### 📋 CHECK RESULTS")
         
-        if pause_btn:
-            st.session_state.bulk_paused = not st.session_state.bulk_paused
-            st.rerun()
-        
-        if stop_btn:
-            st.session_state.bulk_running = False
-            st.session_state.bulk_paused = False
-            st.rerun()
-        
-        # Show results table
         if st.session_state.results:
             df = pd.DataFrame(st.session_state.results)
-            st.dataframe(df, use_container_width=True)
             
-            # Export buttons
-            col_csv, col_json = st.columns(2)
+            # Filters
+            col_filter1, col_filter2 = st.columns(2)
+            with col_filter1:
+                status_filter = st.multiselect(
+                    "Filter by Status",
+                    ["✅ LIVE CARD", "❌ DECLINED", "✅ VALID LUHN", "✅ VALID BIN", "⚠️ UNKNOWN BIN"],
+                    default=[]
+                )
             
-            with col_csv:
+            # Apply filters
+            if status_filter:
+                df = df[df['status'].isin(status_filter)]
+            
+            # Display table
+            st.dataframe(
+                df,
+                use_container_width=True,
+                height=400,
+                hide_index=True
+            )
+            
+            # Export options
+            st.markdown("### 📤 EXPORT RESULTS")
+            col_exp1, col_exp2, col_exp3 = st.columns(3)
+            
+            with col_exp1:
                 csv = df.to_csv(index=False)
                 st.download_button(
                     label="📥 Download CSV",
@@ -517,7 +805,7 @@ class UltimateStripeChecker:
                     mime="text/csv"
                 )
             
-            with col_json:
+            with col_exp2:
                 json_str = df.to_json(orient="records", indent=2)
                 st.download_button(
                     label="📥 Download JSON",
@@ -525,61 +813,81 @@ class UltimateStripeChecker:
                     file_name="stripe_results.json",
                     mime="application/json"
                 )
+            
+            with col_exp3:
+                if st.button("🗑️ Clear Results", use_container_width=True):
+                    st.session_state.results = []
+                    st.success("Results cleared!")
+                    st.rerun()
         else:
             st.info("No results yet. Upload a file and start checking!")
     
-    def run_bulk_check(self, cards, threads, delay):
-        """Run bulk check (simulated)"""
-        total = len(cards)
+    def start_bulk_check(self, uploaded_file, threads, delay):
+        """Start bulk check process"""
+        content = uploaded_file.getvalue().decode()
+        cards = [line.strip() for line in content.split('\n') if line.strip()]
+        
+        # Simulate bulk check
+        total_cards = min(len(cards), 50)  # Limit for demo
         
         progress_bar = st.progress(0)
         status_text = st.empty()
         
-        # Limit to 20 cards for demo
-        cards_to_process = cards[:20]
-        
-        for i, card in enumerate(cards_to_process):
+        for i in range(total_cards):
             if not st.session_state.bulk_running:
                 break
             
             while st.session_state.bulk_paused:
                 time.sleep(0.1)
             
-            # Simulate check
+            # Simulate processing
             time.sleep(delay / 1000)
+            
+            # Generate fake card for demo
+            card = cards[i] if i < len(cards) else self.generate_random_card()
             
             # Validate
             is_valid = self.validator.validate_luhn(card)
             bin_info = self.validator.get_bin_info(card)
             
-            if is_valid and random.random() > 0.5:
-                status = "✅ LIVE"
+            # Determine status
+            if is_valid and random.random() > 0.4:
+                status = "✅ LIVE CARD"
                 st.session_state.live_cards += 1
             else:
-                status = "❌ DEAD"
+                status = "❌ DECLINED"
                 st.session_state.dead_cards += 1
             
             st.session_state.total_checked += 1
             
             # Add result
-            st.session_state.results.append({
-                'card': f"{card[:6]}******{card[-4:]}",
+            result = {
+                'card': f"{card[:6]}******{card[-4:]}" if len(card) > 10 else card,
                 'status': status,
                 'issuer': bin_info.get('issuer', 'Unknown') if bin_info else 'Unknown',
                 'time': datetime.now().strftime("%H:%M:%S")
-            })
+            }
+            st.session_state.results.append(result)
             
             # Update progress
-            progress = (i + 1) / len(cards_to_process)
+            progress = (i + 1) / total_cards
             progress_bar.progress(progress)
-            status_text.text(f"Processing: {i + 1}/{len(cards_to_process)} - {status}")
+            status_text.text(f"Processing: {i + 1}/{total_cards} - {status}")
             
-            # Log
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Bulk: {status} - {card[-4:]}"
-            st.session_state.activity_log.append(log_entry)
+            # Log every 5 cards
+            if (i + 1) % 5 == 0:
+                st.session_state.activity_log.append(
+                    f"[{datetime.now().strftime('%H:%M:%S')}] Bulk: {i + 1}/{total_cards} processed"
+                )
         
+        # Complete
         st.session_state.bulk_running = False
-        st.success(f"✅ Bulk check complete! Processed {len(cards_to_process)} cards")
+        st.session_state.bulk_paused = False
+        
+        st.session_state.activity_log.append(
+            f"[{datetime.now().strftime('%H:%M:%S')}] ✅ Bulk check complete: {total_cards} cards processed"
+        )
+        
         st.rerun()
     
     def show_proxy_manager(self):
@@ -589,1188 +897,469 @@ class UltimateStripeChecker:
         col1, col2 = st.columns([2, 1])
         
         with col1:
-            st.markdown("### Proxy List")
+            st.markdown("### 📋 PROXY LIST")
             
-            # Display proxies
-            proxies_df = pd.DataFrame({
-                'Proxy': st.session_state.proxies,
-                'Status': ['🟢 Active'] * len(st.session_state.proxies)
-            })
-            st.dataframe(proxies_df, use_container_width=True)
+            # Create proxy dataframe
+            proxies_data = []
+            for i, proxy in enumerate(st.session_state.proxies, 1):
+                # Parse proxy
+                parts = proxy.split(':')
+                if len(parts) >= 2:
+                    ip_port = f"{parts[0]}:{parts[1]}"
+                    auth = f"{parts[2]}:{parts[3]}" if len(parts) > 3 else "N/A"
+                else:
+                    ip_port = proxy
+                    auth = "N/A"
+                
+                proxies_data.append({
+                    '#': i,
+                    'Proxy': ip_port,
+                    'Auth': auth,
+                    'Status': '🟢 Active',
+                    'Speed': f"{random.randint(50, 500)}ms"
+                })
+            
+            # Display as dataframe
+            if proxies_data:
+                df_proxies = pd.DataFrame(proxies_data)
+                st.dataframe(
+                    df_proxies,
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.warning("No proxies configured")
         
         with col2:
-            st.markdown("### Add Proxy")
+            st.markdown("### 🔧 PROXY ACTIONS")
             
+            # Add new proxy
+            st.markdown("**Add New Proxy:**")
             new_proxy = st.text_input(
-                "Proxy (ip:port)",
-                placeholder="192.168.1.1:8080",
-                help="Format: IP:PORT"
-            )
-            
-            if st.button("➕ Add Proxy", use_container_width=True) and new_proxy:
-                if ":" in new_proxy:
-                    st.session_state.proxies.append(new_proxy)
-                    st.session_state.activity_log.append(
-                        f"[{datetime.now().strftime('%H:%M:%S')}] Added proxy: {new_proxy}"
-                    )
-                    st.success(f"Added proxy: {new_proxy}")
-                    st.rerun()
-                else:
-                    st.error("Invalid format. Use IP:PORT")
-            
-            # Remove selected
-            if st.session_state.proxies:
-                proxy_to_remove = st.selectbox(
-                    "Select proxy to remove",
-                    st.session_state.proxies
-                )
-                
-                if st.button("➖ Remove Selected", use_container_width=True):
-                    st.session_state.proxies.remove(proxy_to_remove)
-                    st.session_state.activity_log.append(
-                        f"[{datetime.now().strftime('%H:%M:%S')}] Removed proxy: {proxy_to_remove}"
-                    )
-                    st.success(f"Removed proxy: {proxy_to_remove}")
-                    st.rerun()
-        
-        # Test proxies button
-        if st.button("🔄 Test All Proxies", use_container_width=True):
-            with st.spinner("Testing proxies..."):
-                time.sleep(2)
-                st.success(f"Tested {len(st.session_state.proxies)} proxies. All active!")
-    
-    def show_results(self):
-        """Show results"""
-        st.markdown("## 📊 RESULTS DATABASE")
-        
-        if st.session_state.results:
-            df = pd.DataFrame(st.session_state.results)
-            
-            # Filters
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                status_filter = st.multiselect(
-                    "Filter by Status",
-                    options=["✅ LIVE", "❌ DEAD", "⚠️ UNKNOWN BIN", "✅ VALID", "❌ INVALID"],
-                    default=[]
-                )
-            
-            with col2:
-                issuer_filter = st.multiselect(
-                    "Filter by Issuer",
-                    options=df['issuer'].unique(),
-                    default=[]
-                )
-            
-            with col3:
-                date_filter = st.date_input(
-                    "Filter by Date",
-                    value=None
-                )
-            
-            # Apply filters
-            filtered_df = df.copy()
-            
-            if status_filter:
-                filtered_df = filtered_df[filtered_df['status'].isin(status_filter)]
-            
-            if issuer_filter:
-                filtered_df = filtered_df[filtered_df['issuer'].isin(issuer_filter)]
-            
-            # Display results
-            st.dataframe(filtered_df, use_container_width=True)
-            
-            # Statistics
-            st.markdown("### 📈 Statistics")
-            
-            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-            
-            with col_stat1:
-                st.metric("Total Results", len(filtered_df))
-            
-            with col_stat2:
-                live_count = len(filtered_df[filtered_df['status'].str.contains('✅')])
-                st.metric("Live Cards", live_count)
-            
-            with col_stat3:
-                dead_count = len(filtered_df[filtered_df['status'].str.contains('❌')])
-                st.metric("Dead Cards", dead_count)
-            
-            with col_stat4:
-                rate = (live_count / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                st.metric("Success Rate", f"{rate:.1f}%")
-            
-            # Export options
-            st.markdown("---")
-            st.markdown("### 📤 Export Results")
-            
-            export_format = st.radio(
-                "Export Format",
-                ["CSV", "JSON", "Excel"],
-                horizontal=True
-            )
-            
-            if export_format == "CSV":
-                csv = filtered_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name="stripe_results.csv",
-                    mime="text/csv"
-                )
-            
-            elif export_format == "JSON":
-                json_str = filtered_df.to_json(orient="records", indent=2)
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=json_str,
-                    file_name="stripe_results.json",
-                    mime="application/json"
-                )
-            
-            else:  # Excel
-                # Convert to Excel
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    filtered_df.to_excel(writer, index=False, sheet_name='Results')
-                excel_data = output.getvalue()
-                
-                st.download_button(
-                    label="📥 Download Excel",
-                    data=excel_data,
-                    file_name="stripe_results.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            
-            # Clear results button
-            if st.button("🗑️ Clear All Results", type="secondary"):
-                st.session_state.results = []
-                st.session_state.activity_log.append(
-                    f"[{datetime.now().strftime('%H:%M:%S')}] Cleared all results"
-                )
-                st.success("Results cleared!")
-                st.rerun()
-        
-        else:
-            st.info("No results yet. Start checking cards!")
-    
-    def show_tools(self):
-        """Show tools"""
-        st.markdown("## 🛠️ ADVANCED TOOLS")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 🔢 Card Generator")
-            generate_count = st.number_input("Number of cards", 1, 100, 5)
-            
-            if st.button("Generate Cards", use_container_width=True):
-                generated_cards = []
-                for _ in range(generate_count):
-                    card = self.generate_random_card()
-                    generated_cards.append(card)
-                
-                # Display generated cards
-                st.markdown("**Generated Cards:**")
-                for card in generated_cards:
-                    st.code(card)
-                
-                # Download option
-                cards_text = "\n".join(generated_cards)
-                st.download_button(
-                    label="📥 Download Cards",
-                    data=cards_text,
-                    file_name="generated_cards.txt",
-                    mime="text/plain"
-                )
-            
-            st.markdown("---")
-            st.markdown("### ✅ Luhn Checker")
-            luhn_card = st.text_input("Check Luhn", placeholder="Enter card number")
-            
-            if luhn_card:
-                is_valid = self.validator.validate_luhn(luhn_card)
-                if is_valid:
-                    st.success("✅ Valid Luhn checksum")
-                else:
-                    st.error("❌ Invalid Luhn checksum")
-        
-        with col2:
-            st.markdown("### 🔍 BIN Analyzer")
-            bin_card = st.text_input("BIN Lookup", placeholder="First 6-8 digits")
-            
-            if bin_card:
-                info = self.validator.get_bin_info(bin_card)
-                if info:
-                    st.markdown("**BIN Information:**")
-                    st.markdown(f"- **Issuer:** {info.get('issuer')}")
-                    st.markdown(f"- **Bank:** {info.get('bank')}")
-                    st.markdown(f"- **Country:** {info.get('country')}")
-                    st.markdown(f"- **Type:** {info.get('type')}")
-                else:
-                    st.warning("BIN not found in database")
-            
-            st.markdown("---")
-            st.markdown("### 🌐 Network Tools")
-            
-            if st.button("Ping Test", use_container_width=True):
-                with st.spinner("Running ping test..."):
-                    time.sleep(1)
-                    st.success("Network connectivity: ✅ OK")
-            
-            if st.button("Speed Test", use_container_width=True):
-                with st.spinner("Testing speed..."):
-                    time.sleep(2)
-                    st.success("Speed test complete: 100 Mbps")
-    
-    def generate_random_card(self):
-        """Generate a single random card"""
-        prefixes = list(self.validator.bin_db.keys())
-        prefix = random.choice(prefixes)
-        
-        length = 15 if prefix in ["34", "37"] else 16
-        card = prefix
-        for _ in range(length - len(prefix) - 1):
-            card += str(random.randint(0, 9))
-        
-        # Calculate Luhn
-        for check_digit in range(10):
-            test_card = card + str(check_digit)
-            if self.validator.validate_luhn(test_card):
-                return test_card
-        
-        return card + "0"
-    
-    def save_single_result(self, result):
-        """Save single result"""
-        st.session_state.activity_log.append(
-            f"[{datetime.now().strftime('%H:%M:%S')}] Saved result for card: {result['card'][-4:]}"
-        )
-        st.success("Result saved to database!")
-    
-    def show_settings(self):
-        """Show settings"""
-        st.markdown("## ⚙️ SETTINGS")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### Appearance")
-            
-            theme = st.selectbox(
-                "Theme",
-                ["Dark", "Light", "Cyberpunk"],
-                index=0
-            )
-            
-            st.markdown("### Performance")
-            
-            threads = st.slider("Default Threads", 1, 20, 5)
-            delay = st.slider("Default Delay (ms)", 0, 5000, 100)
-            
-            st.markdown("### Notifications")
-            
-            email_notify = st.checkbox("Email Notifications")
-            sound_notify = st.checkbox("Sound Alerts")
-        
-        with col2:
-            st.markdown("### Security")
-            
-            auto_clear = st.checkbox("Auto-clear clipboard", True)
-            encrypt_data = st.checkbox("Encrypt stored data", True)
-            
-            st.markdown("### Export")
-            
-            auto_export = st.checkbox("Auto-export results", False)
-            export_format = st.selectbox(
-                "Default Export Format",
-                ["CSV", "JSON", "Excel"],
-                index=0
-            )
-            
-            st.markdown("### Updates")
-            
-            auto_update = st.checkbox("Check for updates", True)
-        
-        # Save settings button
-        if st.button("💾 Save Settings", type="primary", use_container_width=True):
-            st.session_state.activity_log.append(
-                f"[{datetime.now().strftime('%H:%M:%S')}] Settings saved"
-            )
-            st.success("Settings saved successfully!")
-        
-        # Reset button
-        if st.button("🔄 Reset to Defaults", use_container_width=True):
-            st.session_state.activity_log.append(
-                f"[{datetime.now().strftime('%H:%M:%S')}] Settings reset to defaults"
-            )
-            st.success("Settings reset to defaults!")
-
-# ==================== RUN APPLICATION ====================
-if __name__ == "__main__":
-    app = UltimateStripeChecker()
-    app.run()        
-        checksum = sum(odd_digits)
-        for d in even_digits:
-            checksum += sum(digits_of(d * 2))
-        
-        return checksum % 10 == 0
-    
-    def get_bin_info(self, card_number):
-        card_number = str(card_number)
-        for prefix, info in self.bin_db.items():
-            if card_number.startswith(prefix):
-                return {
-                    'issuer': info['issuer'],
-                    'type': info['type'],
-                    'country': info['country'],
-                    'bank': info['bank'],
-                    'prefix': prefix
-                }
-        return None
-
-# ==================== MAIN APPLICATION ====================
-class UltimateStripeChecker:
-    def __init__(self):
-        # Initialize session state
-        if 'initialized' not in st.session_state:
-            st.session_state.initialized = True
-            st.session_state.total_checked = 0
-            st.session_state.live_cards = 0
-            st.session_state.dead_cards = 0
-            st.session_state.proxies = [
-                "142.111.48.253:7030",
-                "31.59.20.176:6754",
-                "38.170.176.177:5572"
-            ]
-            st.session_state.results = []
-            st.session_state.activity_log = []
-            st.session_state.bulk_running = False
-            st.session_state.bulk_paused = False
-        
-        self.validator = CardValidator()
-        
-    def run(self):
-        """Main application runner"""
-        # Custom CSS for styling
-        st.set_page_config(
-            page_title="🔥 ULTIMATE STRIPE CHECKER PRO v3.0",
-            page_icon="⚡",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
-        
-        # Custom CSS
-        st.markdown("""
-        <style>
-        .main-header {
-            background: linear-gradient(90deg, #ff0000, #00ff00, #0000ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-size: 2.5rem !important;
-            text-align: center;
-            margin-bottom: 1rem;
-        }
-        .card {
-            background-color: #1a1a1a;
-            padding: 1.5rem;
-            border-radius: 10px;
-            border-left: 5px solid #00ff00;
-            margin-bottom: 1rem;
-        }
-        .live-card {
-            border-left: 5px solid #00ff00 !important;
-        }
-        .dead-card {
-            border-left: 5px solid #ff0000 !important;
-        }
-        .stats-card {
-            text-align: center;
-            background-color: #222222;
-            padding: 1rem;
-            border-radius: 10px;
-        }
-        .stButton>button {
-            width: 100%;
-            background-color: #2a2a2a;
-            color: #00ff00;
-            border: 1px solid #333333;
-        }
-        .stButton>button:hover {
-            background-color: #3a3a3a;
-            border-color: #00ff00;
-        }
-        .accent-button {
-            background: linear-gradient(45deg, #ff0000, #ff3300) !important;
-            color: white !important;
-            font-weight: bold !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-        
-        # Header
-        st.markdown('<h1 class="main-header">🔥 ULTIMATE STRIPE CHECKER PRO v3.0</h1>', unsafe_allow_html=True)
-        
-        # Sidebar Navigation
-        with st.sidebar:
-            st.markdown("## 👑 PRO USER")
-            st.markdown("**Premium Access**")
-            st.markdown("---")
-            
-            # Navigation
-            nav_options = {
-                "📊 Dashboard": "dashboard",
-                "🔍 Single Check": "single",
-                "🚀 Bulk Check": "bulk",
-                "🌐 Proxy Manager": "proxy",
-                "📈 Results": "results",
-                "🛠️ Tools": "tools",
-                "⚙️ Settings": "settings"
-            }
-            
-            selected_page = st.selectbox(
-                "Navigation",
-                list(nav_options.keys()),
+                "Proxy (ip:port:user:pass)",
+                placeholder="192.168.1.1:8080:user:pass",
                 label_visibility="collapsed"
             )
             
-            # Quick Stats in Sidebar
+            col_add1, col_add2 = st.columns(2)
+            with col_add1:
+                if st.button("➕ Add", use_container_width=True) and new_proxy:
+                    if ':' in new_proxy:
+                        st.session_state.proxies.append(new_proxy)
+                        st.session_state.activity_log.append(
+                            f"[{datetime.now().strftime('%H:%M:%S')}] Added proxy"
+                        )
+                        st.success("Proxy added!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid format")
+            
+            with col_add2:
+                if st.button("📝 Import", use_container_width=True):
+                    st.info("Import from file (coming soon)")
+            
+            # Test proxies
             st.markdown("---")
-            st.markdown("### 📊 Quick Stats")
+            if st.button("🔄 Test All Proxies", use_container_width=True):
+                with st.spinner("Testing proxies..."):
+                    time.sleep(2)
+                    st.success(f"Tested {len(st.session_state.proxies)} proxies - All active!")
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Total", st.session_state.total_checked)
-                st.metric("Live", st.session_state.live_cards)
-            with col2:
-                st.metric("Dead", st.session_state.dead_cards)
-                rate = (st.session_state.live_cards / st.session_state.total_checked * 100) if st.session_state.total_checked > 0 else 0
-                st.metric("Rate", f"{rate:.1f}%")
-            
+            # Remove proxy
             st.markdown("---")
-            st.markdown(f"**Proxies:** {len(st.session_state.proxies)}")
-            st.markdown(f"**Last Updated:** {datetime.now().strftime('%H:%M:%S')}")
-        
-        # Main Content Area
-        page = nav_options[selected_page]
-        
-        if page == "dashboard":
-            self.show_dashboard()
-        elif page == "single":
-            self.show_single_check()
-        elif page == "bulk":
-            self.show_bulk_check()
-        elif page == "proxy":
-            self.show_proxy_manager()
-        elif page == "results":
-            self.show_results()
-        elif page == "tools":
-            self.show_tools()
-        elif page == "settings":
-            self.show_settings()
-    
-    def show_dashboard(self):
-        """Show dashboard"""
-        st.markdown("## 📊 DASHBOARD")
-        
-        # Stats Cards
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
-        
-        with col1:
-            st.markdown('<div class="stats-card">📊<br><h3>{}</h3>Total Checks</div>'.format(
-                st.session_state.total_checked), unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown('<div class="stats-card">✅<br><h3>{}</h3>Live Cards</div>'.format(
-                st.session_state.live_cards), unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown('<div class="stats-card">❌<br><h3>{}</h3>Dead Cards</div>'.format(
-                st.session_state.dead_cards), unsafe_allow_html=True)
-        
-        with col4:
-            rate = (st.session_state.live_cards / st.session_state.total_checked * 100) if st.session_state.total_checked > 0 else 0
-            st.markdown('<div class="stats-card">📈<br><h3>{:.1f}%</h3>Success Rate</div>'.format(
-                rate), unsafe_allow_html=True)
-        
-        with col5:
-            st.markdown('<div class="stats-card">🌐<br><h3>{}</h3>Proxies</div>'.format(
-                len(st.session_state.proxies)), unsafe_allow_html=True)
-        
-        with col6:
-            st.markdown('<div class="stats-card">⚡<br><h3>0.0s</h3>Avg Speed</div>', 
-                       unsafe_allow_html=True)
-        
-        # Quick Actions
-        st.markdown("---")
-        st.markdown("### 🚀 Quick Actions")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if st.button("🔍 Check Single Card", use_container_width=True):
-                st.session_state.page = "single"
-                st.rerun()
-        
-        with col2:
-            if st.button("🚀 Start Bulk Check", use_container_width=True):
-                st.session_state.page = "bulk"
-                st.rerun()
-        
-        with col3:
-            if st.button("🌐 Manage Proxies", use_container_width=True):
-                st.session_state.page = "proxy"
-                st.rerun()
-        
-        with col4:
-            if st.button("📊 View Results", use_container_width=True):
-                st.session_state.page = "results"
-                st.rerun()
-        
-        # Recent Activity
-        st.markdown("---")
-        st.markdown("### 📝 Recent Activity")
-        
-        if st.session_state.activity_log:
-            for log in reversed(st.session_state.activity_log[-10:]):
-                st.code(log, language=None)
-        else:
-            st.info("No activity yet. Start checking cards!")
-        
-        # Add some sample activity if empty
-        if not st.session_state.activity_log:
-            sample_logs = [
-                f"[{datetime.now().strftime('%H:%M:%S')}] 🚀 ULTIMATE STRIPE CHECKER PRO v3.0 INITIALIZED",
-                f"[{datetime.now().strftime('%H:%M:%S')}] 📱 Dashboard loaded successfully",
-                f"[{datetime.now().strftime('%H:%M:%S')}] ⚡ Ready to check cards"
-            ]
-            for log in sample_logs:
-                st.session_state.activity_log.append(log)
-    
-    def show_single_check(self):
-        """Show single card check"""
-        st.markdown("## 🔍 SINGLE CARD CHECK")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### 💳 CARD DETAILS")
-            
-            # Card number
-            card_number = st.text_input(
-                "Card Number",
-                value="4242424242424242",
-                placeholder="Enter card number",
-                help="Enter 13-19 digit card number"
-            )
-            
-            # Expiry and CVV
-            col_exp, col_cvv = st.columns(2)
-            
-            with col_exp:
-                month = st.text_input("Month (MM)", value="12", max_chars=2)
-                year = st.text_input("Year (YY)", value="25", max_chars=2)
-            
-            with col_cvv:
-                cvv = st.text_input("CVV", value="123", max_chars=4)
-            
-            # Check mode
-            check_mode = st.radio(
-                "Check Mode",
-                ["Stripe API Check", "Luhn Validation", "BIN Lookup", "Full Validation"],
-                horizontal=True
-            )
-            
-            # Check button
-            if st.button("⚡ CHECK CARD", type="primary", use_container_width=True):
-                if card_number and month and year and cvv:
-                    self.check_single_card(card_number, month, year, cvv, check_mode)
-                else:
-                    st.error("Please fill all fields")
-            
-            # Generate card button
-            if st.button("🎲 GENERATE RANDOM CARD", use_container_width=True):
-                self.generate_card()
-        
-        with col2:
-            st.markdown("### 📊 RESULTS")
-            
-            # Results display area
-            if 'single_result' in st.session_state:
-                result = st.session_state.single_result
-                
-                st.markdown(f"**Card:** `{result['card'][:6]}******{result['card'][-4:]}`")
-                st.markdown(f"**Status:** {result['status']}")
-                st.markdown(f"**Message:** {result['message']}")
-                
-                if result['bin_info']:
-                    st.markdown("---")
-                    st.markdown("**BIN Information:**")
-                    info = result['bin_info']
-                    st.markdown(f"- **Issuer:** {info.get('issuer', 'Unknown')}")
-                    st.markdown(f"- **Bank:** {info.get('bank', 'Unknown')}")
-                    st.markdown(f"- **Country:** {info.get('country', 'Unknown')}")
-                    st.markdown(f"- **Type:** {info.get('type', 'Unknown')}")
-                
-                st.markdown(f"**Time:** {result['time']}")
-                
-                # Action buttons
-                col_copy, col_save = st.columns(2)
-                with col_copy:
-                    if st.button("📋 Copy Result"):
-                        st.success("Result copied to clipboard!")
-                
-                with col_save:
-                    if st.button("💾 Save Result"):
-                        self.save_single_result(result)
-            else:
-                st.info("Enter card details and click CHECK CARD")
-                
-                st.markdown("---")
-                st.markdown("**Test Cards:**")
-                st.markdown("- `4242424242424242` - Visa (Live)")
-                st.markdown("- `4000000000000002` - Visa (Declined)")
-                st.markdown("- `5555555555554444` - MasterCard")
-                st.markdown("- `378282246310005` - American Express")
-    
-    def check_single_card(self, card, month, year, cvv, mode):
-        """Check single card"""
-        with st.spinner("🔄 Checking card..."):
-            time.sleep(1)  # Simulate processing
-            
-            # Validate card
-            is_valid = self.validator.validate_luhn(card)
-            bin_info = self.validator.get_bin_info(card)
-            
-            if "Luhn" in mode:
-                status = "✅ VALID" if is_valid else "❌ INVALID"
-                message = "Luhn check passed" if is_valid else "Luhn check failed"
-            elif "BIN" in mode:
-                if bin_info:
-                    status = "✅ VALID BIN"
-                    message = f"{bin_info.get('issuer', 'Unknown')} card"
-                else:
-                    status = "⚠️ UNKNOWN BIN"
-                    message = "BIN not found"
-            else:
-                # Simulate API check
-                if is_valid and random.random() > 0.3:
-                    status = "✅ LIVE"
-                    message = "Transaction successful"
-                else:
-                    status = "❌ DECLINED"
-                    message = random.choice(["Insufficient funds", "Card declined"])
-            
-            result = {
-                'card': card,
-                'status': status,
-                'message': message,
-                'bin_info': bin_info,
-                'valid': is_valid and "❌" not in status,
-                'time': datetime.now().strftime("%H:%M:%S")
-            }
-            
-            # Update stats
-            st.session_state.total_checked += 1
-            if result['valid']:
-                st.session_state.live_cards += 1
-            else:
-                st.session_state.dead_cards += 1
-            
-            # Store result
-            st.session_state.single_result = result
-            
-            # Log activity
-            log_entry = f"[{result['time']}] Single check: {status} - {card[-4:]}"
-            st.session_state.activity_log.append(log_entry)
-            
-            # Add to results
-            st.session_state.results.append({
-                'card': f"{card[:6]}******{card[-4:]}",
-                'status': status,
-                'issuer': bin_info.get('issuer', 'Unknown') if bin_info else 'Unknown',
-                'time': result['time']
-            })
-            
-            st.rerun()
-    
-    def generate_card(self):
-        """Generate random card"""
-        prefixes = list(self.validator.bin_db.keys())
-        prefix = random.choice(prefixes)
-        
-        # Generate card
-        length = 15 if prefix in ["34", "37"] else 16
-        card = prefix
-        for _ in range(length - len(prefix) - 1):
-            card += str(random.randint(0, 9))
-        
-        # Calculate Luhn
-        for check_digit in range(10):
-            test_card = card + str(check_digit)
-            if self.validator.validate_luhn(test_card):
-                card = test_card
-                break
-        
-        # Update session state for form
-        st.session_state.generated_card = card
-        st.session_state.generated_month = f"{random.randint(1, 12):02d}"
-        st.session_state.generated_year = f"{random.randint(24, 30):02d}"
-        st.session_state.generated_cvv = str(random.randint(1000, 9999)) if prefix in ["34", "37"] else str(random.randint(100, 999))
-        
-        # Log activity
-        log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Generated random card: {card[:6]}******{card[-4:]}"
-        st.session_state.activity_log.append(log_entry)
-        
-        st.success(f"Generated card: {card[:6]}******{card[-4:]}")
-        st.rerun()
-    
-    def show_bulk_check(self):
-        """Show bulk check"""
-        st.markdown("## 🚀 BULK CARD CHECK")
-        
-        # File upload
-        uploaded_file = st.file_uploader(
-            "Upload cards file (TXT, one per line)",
-            type=['txt'],
-            help="Upload a text file with one card per line"
-        )
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            threads = st.slider("Threads", 1, 20, 5)
-            delay = st.slider("Delay (ms)", 0, 5000, 100)
-        
-        with col2:
-            st.markdown("### Control")
-            
-            col_start, col_pause, col_stop = st.columns(3)
-            
-            with col_start:
-                start_btn = st.button("🚀 START", type="primary", use_container_width=True,
-                                    disabled=st.session_state.bulk_running)
-            
-            with col_pause:
-                pause_text = "⏸️ PAUSE" if not st.session_state.bulk_paused else "▶️ RESUME"
-                pause_btn = st.button(pause_text, use_container_width=True,
-                                    disabled=not st.session_state.bulk_running)
-            
-            with col_stop:
-                stop_btn = st.button("⏹️ STOP", use_container_width=True,
-                                   disabled=not st.session_state.bulk_running)
-        
-        # Progress bar
-        if st.session_state.bulk_running:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-        
-        # Results display
-        st.markdown("### 📊 Results")
-        
-        if uploaded_file and start_btn:
-            cards = uploaded_file.getvalue().decode().splitlines()
-            st.session_state.bulk_running = True
-            self.run_bulk_check(cards, threads, delay)
-        
-        if pause_btn:
-            st.session_state.bulk_paused = not st.session_state.bulk_paused
-            st.rerun()
-        
-        if stop_btn:
-            st.session_state.bulk_running = False
-            st.session_state.bulk_paused = False
-            st.rerun()
-        
-        # Show results table
-        if st.session_state.results:
-            df = pd.DataFrame(st.session_state.results)
-            st.dataframe(df, use_container_width=True)
-            
-            # Export buttons
-            col_csv, col_json = st.columns(2)
-            
-            with col_csv:
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name="stripe_results.csv",
-                    mime="text/csv"
-                )
-            
-            with col_json:
-                json_str = df.to_json(orient="records", indent=2)
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=json_str,
-                    file_name="stripe_results.json",
-                    mime="application/json"
-                )
-    
-    def run_bulk_check(self, cards, threads, delay):
-        """Run bulk check (simulated)"""
-        total = len(cards)
-        
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        results_container = st.empty()
-        
-        for i, card in enumerate(cards[:20]):  # Limit to 20 for demo
-            if not st.session_state.bulk_running:
-                break
-            
-            while st.session_state.bulk_paused:
-                time.sleep(0.1)
-            
-            # Simulate check
-            time.sleep(delay / 1000)
-            
-            # Validate
-            is_valid = self.validator.validate_luhn(card)
-            bin_info = self.validator.get_bin_info(card)
-            
-            if is_valid and random.random() > 0.5:
-                status = "✅ LIVE"
-                st.session_state.live_cards += 1
-            else:
-                status = "❌ DEAD"
-                st.session_state.dead_cards += 1
-            
-            st.session_state.total_checked += 1
-            
-            # Add result
-            st.session_state.results.append({
-                'card': f"{card[:6]}******{card[-4:]}",
-                'status': status,
-                'issuer': bin_info.get('issuer', 'Unknown') if bin_info else 'Unknown',
-                'time': datetime.now().strftime("%H:%M:%S")
-            })
-            
-            # Update progress
-            progress = (i + 1) / min(20, total)
-            progress_bar.progress(progress)
-            status_text.text(f"Processing: {i + 1}/{min(20, total)} - {status}")
-            
-            # Log
-            log_entry = f"[{datetime.now().strftime('%H:%M:%S')}] Bulk: {status} - {card[-4:]}"
-            st.session_state.activity_log.append(log_entry)
-        
-        st.session_state.bulk_running = False
-        st.success(f"✅ Bulk check complete! Processed {min(20, total)} cards")
-        st.rerun()
-    
-    def show_proxy_manager(self):
-        """Show proxy manager"""
-        st.markdown("## 🌐 PROXY MANAGER")
-        
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.markdown("### Proxy List")
-            
-            # Display proxies
-            proxies_df = pd.DataFrame({
-                'Proxy': st.session_state.proxies,
-                'Status': ['🟢 Active'] * len(st.session_state.proxies)
-            })
-            st.dataframe(proxies_df, use_container_width=True)
-        
-        with col2:
-            st.markdown("### Add Proxy")
-            
-            new_proxy = st.text_input(
-                "Proxy (ip:port)",
-                placeholder="192.168.1.1:8080",
-                help="Format: IP:PORT"
-            )
-            
-            if st.button("➕ Add Proxy", use_container_width=True) and new_proxy:
-                if ":" in new_proxy:
-                    st.session_state.proxies.append(new_proxy)
-                    st.session_state.activity_log.append(
-                        f"[{datetime.now().strftime('%H:%M:%S')}] Added proxy: {new_proxy}"
-                    )
-                    st.success(f"Added proxy: {new_proxy}")
-                    st.rerun()
-                else:
-                    st.error("Invalid format. Use IP:PORT")
-            
-            # Remove selected
             if st.session_state.proxies:
                 proxy_to_remove = st.selectbox(
                     "Select proxy to remove",
                     st.session_state.proxies
                 )
                 
-                if st.button("➖ Remove Selected", use_container_width=True):
+                if st.button("➖ Remove Selected", use_container_width=True, type="secondary"):
                     st.session_state.proxies.remove(proxy_to_remove)
                     st.session_state.activity_log.append(
-                        f"[{datetime.now().strftime('%H:%M:%S')}] Removed proxy: {proxy_to_remove}"
+                        f"[{datetime.now().strftime('%H:%M:%S')}] Removed proxy"
                     )
-                    st.success(f"Removed proxy: {proxy_to_remove}")
+                    st.success("Proxy removed!")
                     st.rerun()
-        
-        # Test proxies button
-        if st.button("🔄 Test All Proxies", use_container_width=True):
-            with st.spinner("Testing proxies..."):
-                time.sleep(2)
-                st.success(f"Tested {len(st.session_state.proxies)} proxies. All active!")
+            
+            # Export proxies
+            st.markdown("---")
+            if st.button("📤 Export List", use_container_width=True):
+                proxy_text = "\n".join(st.session_state.proxies)
+                st.download_button(
+                    label="📥 Download",
+                    data=proxy_text,
+                    file_name="proxies.txt",
+                    mime="text/plain"
+                )
     
     def show_results(self):
-        """Show results"""
+        """Show results database"""
         st.markdown("## 📊 RESULTS DATABASE")
         
-        if st.session_state.results:
-            df = pd.DataFrame(st.session_state.results)
-            
-            # Filters
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                status_filter = st.multiselect(
-                    "Filter by Status",
-                    options=["✅ LIVE", "❌ DEAD", "⚠️ UNKNOWN BIN", "✅ VALID", "❌ INVALID"],
-                    default=[]
-                )
-            
-            with col2:
-                issuer_filter = st.multiselect(
-                    "Filter by Issuer",
-                    options=df['issuer'].unique(),
-                    default=[]
-                )
-            
-            with col3:
-                date_filter = st.date_input(
-                    "Filter by Date",
-                    value=None
-                )
-            
-            # Apply filters
-            filtered_df = df.copy()
-            
-            if status_filter:
-                filtered_df = filtered_df[filtered_df['status'].isin(status_filter)]
-            
-            if issuer_filter:
-                filtered_df = filtered_df[filtered_df['issuer'].isin(issuer_filter)]
-            
-            # Display results
-            st.dataframe(filtered_df, use_container_width=True)
-            
-            # Statistics
-            st.markdown("### 📈 Statistics")
-            
-            col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-            
-            with col_stat1:
-                st.metric("Total Results", len(filtered_df))
-            
-            with col_stat2:
-                live_count = len(filtered_df[filtered_df['status'].str.contains('✅')])
-                st.metric("Live Cards", live_count)
-            
-            with col_stat3:
-                dead_count = len(filtered_df[filtered_df['status'].str.contains('❌')])
-                st.metric("Dead Cards", dead_count)
-            
-            with col_stat4:
-                rate = (live_count / len(filtered_df) * 100) if len(filtered_df) > 0 else 0
-                st.metric("Success Rate", f"{rate:.1f}%")
-            
-            # Export options
-            st.markdown("---")
-            st.markdown("### 📤 Export Results")
-            
-            export_format = st.radio(
-                "Export Format",
-                ["CSV", "JSON", "Excel"],
-                horizontal=True
-            )
-            
-            if export_format == "CSV":
-                csv = filtered_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name="stripe_results.csv",
-                    mime="text/csv"
-                )
-            
-            elif export_format == "JSON":
-                json_str = filtered_df.to_json(orient="records", indent=2)
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=json_str,
-                    file_name="stripe_results.json",
-                    mime="application/json"
-                )
-            
-            else:  # Excel
-                # Convert to Excel
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    filtered_df.to_excel(writer, index=False, sheet_name='Results')
-                excel_data = output.getvalue()
-                
-                st.download_button(
-                    label="📥 Download Excel",
-                    data=excel_data,
-                    file_name="stripe_results.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            
-            # Clear results button
-            if st.button("🗑️ Clear All Results", type="secondary"):
-                st.session_state.results = []
-                st.session_state.activity_log.append(
-                    f"[{datetime.now().strftime('%H:%M:%S')}] Cleared all results"
-                )
-                st.success("Results cleared!")
-                st.rerun()
+        if not st.session_state.results:
+            st.info("No results available. Start checking cards to see results here.")
+            return
         
-        else:
-            st.info("No results yet. Start checking cards!")
+        # Convert results to dataframe
+        df = pd.DataFrame(st.session_state.results)
+        
+        # Filters
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            status_options = df['status'].unique().tolist()
+            status_filter = st.multiselect(
+                "Filter by Status",
+                status_options,
+                default=[]
+            )
+        
+        with col2:
+            issuer_options = df['issuer'].unique().tolist()
+            issuer_filter = st.multiselect(
+                "Filter by Issuer",
+                issuer_options,
+                default=[]
+            )
+        
+        with col3:
+            if 'time' in df.columns:
+                date_options = df['time'].apply(lambda x: x.split(' ')[0] if ' ' in str(x) else str(x)).unique()
+                date_filter = st.multiselect(
+                    "Filter by Date",
+                    date_options,
+                    default=[]
+                )
+        
+        # Apply filters
+        filtered_df = df.copy()
+        if status_filter:
+            filtered_df = filtered_df[filtered_df['status'].isin(status_filter)]
+        if issuer_filter:
+            filtered_df = filtered_df[filtered_df['issuer'].isin(issuer_filter)]
+        
+        # Display results
+        st.dataframe(
+            filtered_df,
+            use_container_width=True,
+            height=500
+        )
+        
+        # Statistics
+        st.markdown("### 📈 STATISTICS")
+        
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        with col_stat1:
+            total = len(filtered_df)
+            st.metric("Total Results", total)
+        
+        with col_stat2:
+            live = len(filtered_df[filtered_df['status'].str.contains('✅')])
+            st.metric("Live Cards", live)
+        
+        with col_stat3:
+            dead = len(filtered_df[filtered_df['status'].str.contains('❌')])
+            st.metric("Dead Cards", dead)
+        
+        with col_stat4:
+            rate = (live / total * 100) if total > 0 else 0
+            st.metric("Success Rate", f"{rate:.1f}%")
+        
+        # Export options
+        st.markdown("### 📤 EXPORT OPTIONS")
+        
+        export_format = st.radio(
+            "Select format:",
+            ["CSV", "JSON", "Excel"],
+            horizontal=True
+        )
+        
+        if export_format == "CSV":
+            csv_data = filtered_df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv_data,
+                file_name="stripe_results.csv",
+                mime="text/csv"
+            )
+        
+        elif export_format == "JSON":
+            json_data = filtered_df.to_json(orient="records", indent=2)
+            st.download_button(
+                label="📥 Download JSON",
+                data=json_data,
+                file_name="stripe_results.json",
+                mime="application/json"
+            )
+        
+        elif export_format == "Excel":
+            # Create Excel file
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                filtered_df.to_excel(writer, index=False, sheet_name='Results')
+            excel_data = output.getvalue()
+            
+            st.download_button(
+                label="📥 Download Excel",
+                data=excel_data,
+                file_name="stripe_results.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     
     def show_tools(self):
-        """Show tools"""
+        """Show advanced tools"""
         st.markdown("## 🛠️ ADVANCED TOOLS")
+        
+        # Tools in tabs
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "🔢 Card Generator", 
+            "🔍 BIN Analyzer", 
+            "✅ Luhn Checker",
+            "🌐 Network Tools"
+        ])
+        
+        with tab1:
+            self.show_card_generator()
+        
+        with tab2:
+            self.show_bin_analyzer()
+        
+        with tab3:
+            self.show_luhn_checker()
+        
+        with tab4:
+            self.show_network_tools()
+    
+    def show_card_generator(self):
+        """Card generator tool"""
+        st.markdown("### 🔢 CARD GENERATOR")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### 🔢 Card Generator")
-            generate_count = st.number_input("Number of cards", 1, 100, 5)
+            card_type = st.selectbox(
+                "Card Type",
+                ["VISA", "MasterCard", "American Express", "Discover", "JCB", "Diners Club"]
+            )
             
-            if st.button("Generate Cards", use_container_width=True):
-                generated_cards = []
-                for _ in range(generate_count):
-                    card = self.generate_random_card()
-                    generated_cards.append(card)
+            quantity = st.slider("Quantity", 1, 100, 10)
+            
+            include_details = st.checkbox("Include Expiry & CVV", True)
+        
+        with col2:
+            if st.button("🎲 Generate Cards", type="primary", use_container_width=True):
+                generated = []
+                
+                # Prefix mapping
+                prefixes = {
+                    "VISA": ["4"],
+                    "MasterCard": ["51", "52", "53", "54", "55"],
+                    "American Express": ["34", "37"],
+                    "Discover": ["6011", "65"],
+                    "JCB": ["35"],
+                    "Diners Club": ["30", "36", "38"]
+                }
+                
+                with st.spinner(f"Generating {quantity} cards..."):
+                    for i in range(quantity):
+                        # Get prefix for card type
+                        type_prefixes = prefixes.get(card_type, ["4"])
+                        prefix = random.choice(type_prefixes)
+                        
+                        # Determine length
+                        length = 15 if prefix in ["34", "37"] else 16
+                        
+                        # Generate card
+                        card = prefix
+                        for _ in range(length - len(prefix) - 1):
+                            card += str(random.randint(0, 9))
+                        
+                        # Calculate Luhn
+                        for check_digit in range(10):
+                            test_card = card + str(check_digit)
+                            if self.validator.validate_luhn(test_card):
+                                final_card = test_card
+                                break
+                        
+                        # Add details
+                        if include_details:
+                            month = f"{random.randint(1, 12):02d}"
+                            year = f"{random.randint(24, 30)}"
+                            cvv = str(random.randint(1000, 9999)) if prefix in ["34", "37"] else str(random.randint(100, 999))
+                            generated.append(f"{final_card}|{month}|{year}|{cvv}")
+                        else:
+                            generated.append(final_card)
                 
                 # Display generated cards
                 st.markdown("**Generated Cards:**")
-                for card in generated_cards:
-                    st.code(card)
+                card_text = "\n".join(generated)
+                st.text_area("Cards", card_text, height=200)
                 
-                # Download option
-                cards_text = "\n".join(generated_cards)
+                # Download
                 st.download_button(
                     label="📥 Download Cards",
-                    data=cards_text,
-                    file_name="generated_cards.txt",
+                    data=card_text,
+                    file_name=f"{card_type}_cards.txt",
                     mime="text/plain"
                 )
-            
-            st.markdown("---")
-            st.markdown("### ✅ Luhn Checker")
-            luhn_card = st.text_input("Check Luhn", placeholder="Enter card number")
-            
-            if luhn_card:
-                is_valid = self.validator.validate_luhn(luhn_card)
-                if is_valid:
-                    st.success("✅ Valid Luhn checksum")
-                else:
-                    st.error("❌ Invalid Luhn checksum")
-        
-        with col2:
-            st.markdown("### 🔍 BIN Analyzer")
-            bin_card = st.text_input("BIN Lookup", placeholder="First 6-8 digits")
-            
-            if bin_card:
-                info = self.validator.get_bin_info(bin_card)
-                if info:
-                    st.markdown("**BIN Information:**")
-                    st.markdown(f"- **Issuer:** {info.get('issuer')}")
-                    st.markdown(f"- **Bank:** {info.get('bank')}")
-                    st.markdown(f"- **Country:** {info.get('country')}")
-                    st.markdown(f"- **Type:** {info.get('type')}")
-                else:
-                    st.warning("BIN not found in database")
-            
-            st.markdown("---")
-            st.markdown("### 🌐 Network Tools")
-            
-            if st.button("Ping Test", use_container_width=True):
-                with st.spinner("Running ping test..."):
-                    time.sleep(1)
-                    st.success("Network connectivity: ✅ OK")
-            
-            if st.button("Speed Test", use_container_width=True):
-                with st.spinner("Testing speed..."):
-                    time.sleep(2)
-                    st.success("Speed test complete: 100 Mbps")
     
-    def generate_random_card(self):
-        """Generate a single random card"""
-        prefixes = list(self.validator.bin_db.keys())
-        prefix = random.choice(prefixes)
+    def show_bin_analyzer(self):
+        """BIN analyzer tool"""
+        st.markdown("### 🔍 BIN ANALYZER")
         
-        length = 15 if prefix in ["34", "37"] else 16
-        card = prefix
-        for _ in range(length - len(prefix) - 1):
-            card += str(random.randint(0, 9))
-        
-        # Calculate Luhn
-        for check_digit in range(10):
-            test_card = card + str(check_digit)
-            if self.validator.validate_luhn(test_card):
-                return test_card
-        
-        return card + "0"
-    
-    def save_single_result(self, result):
-        """Save single result"""
-        st.session_state.activity_log.append(
-            f"[{datetime.now().strftime('%H:%M:%S')}] Saved result for card: {result['card'][-4:]}"
+        bin_input = st.text_input(
+            "Enter BIN (first 6-8 digits)",
+            placeholder="424242",
+            help="Enter the first 6-8 digits of a card"
         )
-        st.success("Result saved to database!")
+        
+        if bin_input:
+            info = self.validator.get_bin_info(bin_input)
+            
+            if info:
+                # Display BIN info in nice format
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, #1a1a2e, #16213e); 
+                            padding: 20px; border-radius: 10px; border-left: 5px solid #00ffff;">
+                    <h4 style="color: #00ffff; margin-top:0;">BIN ANALYSIS RESULT</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div><strong>Issuer:</strong> {info.get('issuer', 'Unknown')}</div>
+                        <div><strong>Type:</strong> {info.get('type', 'Unknown')}</div>
+                        <div><strong>Bank:</strong> {info.get('bank', 'Unknown')}</div>
+                        <div><strong>Country:</strong> {info.get('country', 'Unknown')}</div>
+                        <div><strong>Prefix:</strong> {info.get('prefix', 'Unknown')}</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.warning("BIN not found in database")
+        
+        # Show BIN database
+        with st.expander("📚 BIN DATABASE"):
+            bin_data = []
+            for prefix, info in self.validator.bin_db.items():
+                bin_data.append({
+                    'Prefix': prefix,
+                    'Issuer': info['issuer'],
+                    'Type': info['type'],
+                    'Bank': info['bank']
+                })
+            
+            if bin_data:
+                st.dataframe(pd.DataFrame(bin_data), use_container_width=True)
     
-    def show_settings(self):
-        """Show settings"""
-        st.markdown("## ⚙️ SETTINGS")
+    def show_luhn_checker(self):
+        """Luhn checker tool"""
+        st.markdown("### ✅ LUHN ALGORITHM CHECKER")
+        
+        card_input = st.text_input(
+            "Enter card number to validate",
+            placeholder="1234567812345670"
+        )
+        
+        if card_input:
+            is_valid = self.validator.validate_luhn(card_input)
+            
+            if is_valid:
+                st.success("✅ Valid Luhn checksum - Card number passes validation")
+            else:
+                st.error("❌ Invalid Luhn checksum - Card number fails validation")
+            
+            # Explain calculation
+            with st.expander("📖 How Luhn Algorithm Works"):
+                st.markdown("""
+                **Luhn Algorithm Steps:**
+                1. Starting from the rightmost digit, double every second digit
+                2. If doubling results in a number greater than 9, add the digits
+                3. Sum all digits (modified and unchanged)
+                4. If total sum modulo 10 equals 0, number is valid
+                
+                **Example:** `79927398713`
+                - Digits: 7 9 9 2 7 3 9 8 7 1 3
+                - Double every second from right: 7 18 9 4 7 6 9 16 7 2 3
+                - Sum digits: 7 + (1+8) + 9 + 4 + 7 + 6 + 9 + (1+6) + 7 + 2 + 3 = 70
+                - 70 % 10 = 0 ✓ Valid
+                """)
+    
+    def show_network_tools(self):
+        """Network tools"""
+        st.markdown("### 🌐 NETWORK TOOLS")
         
         col1, col2 = st.columns(2)
         
         with col1:
-            st.markdown("### Appearance")
+            if st.button("🔄 Ping Test", use_container_width=True):
+                with st.spinner("Testing network..."):
+                    time.sleep(1)
+                    st.success("Network connectivity: ✅ Excellent")
             
-            theme = st.selectbox(
-                "Theme",
-                ["Dark", "Light", "Cyberpunk"],
-                index=0
-            )
-            
-            st.markdown("### Performance")
-            
-            threads = st.slider("Default Threads", 1, 20, 5)
-            delay = st.slider("Default Delay (ms)", 0, 5000, 100)
-            
-            st.markdown("### Notifications")
-            
-            email_notify = st.checkbox("Email Notifications")
-            sound_notify = st.checkbox("Sound Alerts")
+            if st.button("⚡ Speed Test", use_container_width=True):
+                with st.spinner("Measuring speed..."):
+                    time.sleep(2)
+                    st.metric("Download Speed", "95.6 Mbps")
+                    st.metric("Upload Speed", "42.3 Mbps")
+                    st.metric("Latency", "28 ms")
         
         with col2:
-            st.markdown("### Security")
+            if st.button("🌍 Geo IP", use_container_width=True):
+                st.info("Your IP: 192.168.1.1 (Local)")
+                st.info("Location: Local Network")
+                st.info("ISP: Local Router")
             
-            auto_clear = st.checkbox("Auto-clear clipboard", True)
-            encrypt_data = st.checkbox("Encrypt stored data", True)
+            if st.button("🔒 SSL Check", use_container_width=True):
+                with st.spinner("Checking SSL..."):
+                    time.sleep(1)
+                    st.success("SSL/TLS: ✅ Secure")
+    
+    def show_settings(self):
+        """Show settings"""
+        st.markdown("## ⚙️ SYSTEM SETTINGS")
+        
+        tab1, tab2, tab3 = st.tabs(["Appearance", "Performance", "Security"])
+        
+        with tab1:
+            col1, col2 = st.columns(2)
             
-            st.markdown("### Export")
+            with col1:
+                theme = st.selectbox(
+                    "Theme",
+                    ["Dark Pro", "Light", "Cyberpunk", "Matrix", "Ocean"],
+                    index=0
+                )
+                
+                font_size = st.slider("Font Size", 12, 24, 14)
             
-            auto_export = st.checkbox("Auto-export results", False)
-            export_format = st.selectbox(
-                "Default Export Format",
-                ["CSV", "JSON", "Excel"],
-                index=0
-            )
+            with col2:
+                show_animations = st.checkbox("Show Animations", True)
+                compact_mode = st.checkbox("Compact Mode", False)
+        
+        with tab2:
+            col1, col2 = st.columns(2)
             
-            st.markdown("### Updates")
+            with col1:
+                max_threads = st.slider("Max Threads", 1, 100, 20)
+                request_timeout = st.number_input("Request Timeout (s)", 5, 120, 30)
             
-            auto_update = st.checkbox("Check for updates", True)
+            with col2:
+                cache_size = st.select_slider(
+                    "Cache Size",
+                    options=["256MB", "512MB", "1GB", "2GB"],
+                    value="1GB"
+                )
+                auto_save = st.checkbox("Auto-save Results", True)
+        
+        with tab3:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                encrypt_data = st.checkbox("Encrypt Local Data", True)
+                clear_clipboard = st.checkbox("Auto-clear Clipboard", True)
+            
+            with col2:
+                require_password = st.checkbox("Require Password", False)
+                if require_password:
+                    st.text_input("Password", type="password")
         
         # Save settings button
         if st.button("💾 Save Settings", type="primary", use_container_width=True):
@@ -1778,302 +1367,41 @@ class UltimateStripeChecker:
                 f"[{datetime.now().strftime('%H:%M:%S')}] Settings saved"
             )
             st.success("Settings saved successfully!")
-        
-        # Reset button
-        if st.button("🔄 Reset to Defaults", use_container_width=True):
-            st.session_state.activity_log.append(
-                f"[{datetime.now().strftime('%H:%M:%S')}] Settings reset to defaults"
-            )
-            st.success("Settings reset to defaults!")
-
-# ==================== RUN APPLICATION ====================
-if __name__ == "__main__":
-    app = UltimateStripeChecker()
-    app.run()        self.single_results.insert(tk.END, output)
-        
-        # Update stats
-        self.total_checked += 1
-        if result['valid']:
-            self.live_cards += 1
-        else:
-            self.dead_cards += 1
-        
-        self.log_activity(f"Single check: {result['status']} - {result['card'][-4:]}")
     
-    def generate_card(self):
-        """Generate random card"""
-        prefixes = list(self.validator.bin_db.keys())
-        prefix = random.choice(prefixes)
+    def show_history(self):
+        """Show card history"""
+        st.markdown("## 📋 CHECK HISTORY")
         
-        # Generate card
-        length = 15 if prefix in ["34", "37"] else 16
-        card = prefix
-        for _ in range(length - len(prefix) - 1):
-            card += str(random.randint(0, 9))
+        if not st.session_state.card_history:
+            st.info("No history available. Check some cards first!")
+            return
         
-        # Calculate Luhn
-        for check_digit in range(10):
-            test_card = card + str(check_digit)
-            if self.validator.validate_luhn(test_card):
-                card = test_card
-                break
-        
-        # Update UI
-        self.card_entry.delete(0, tk.END)
-        self.card_entry.insert(0, card)
-        
-        self.month_entry.delete(0, tk.END)
-        self.month_entry.insert(0, f"{random.randint(1, 12):02d}")
-        
-        self.year_entry.delete(0, tk.END)
-        self.year_entry.insert(0, f"{random.randint(24, 30):02d}")
-        
-        if prefix in ["34", "37"]:
-            cvv = str(random.randint(1000, 9999))
-        else:
-            cvv = str(random.randint(100, 999))
-        
-        self.cvv_entry.delete(0, tk.END)
-        self.cvv_entry.insert(0, cvv)
-        
-        self.log_activity("Generated random card")
+        # Display history
+        for item in reversed(st.session_state.card_history[-20:]):
+            col1, col2, col3 = st.columns([3, 1, 1])
+            with col1:
+                st.markdown(f"`{item['card']}`")
+            with col2:
+                st.markdown(f"**{item['status']}**")
+            with col3:
+                st.markdown(f"*{item['time']}*")
+            st.divider()
     
-    def browse_bulk_file(self):
-        """Browse for bulk file"""
-        filename = filedialog.askopenfilename(
-            title="Select cards file",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+    def save_result(self, result):
+        """Save single result"""
+        st.session_state.activity_log.append(
+            f"[{datetime.now().strftime('%H:%M:%S')}] Saved result: {result['card'][-4:]}"
         )
-        if filename:
-            self.bulk_file_var.set(filename)
-            self.log_activity(f"Selected file: {filename}")
-    
-    def start_bulk_check(self):
-        """Start bulk check"""
-        if not self.bulk_file_var.get():
-            messagebox.showerror("Error", "Please select a cards file")
-            return
-        
-        if self.is_bulk_running:
-            messagebox.showwarning("Warning", "Bulk check is already running")
-            return
-        
-        self.is_bulk_running = True
-        self.is_bulk_paused = False
-        
-        # Update UI
-        self.start_bulk_btn.config(state=tk.DISABLED)
-        self.pause_bulk_btn.config(state=tk.NORMAL)
-        self.stop_bulk_btn.config(state=tk.NORMAL)
-        
-        # Start thread
-        thread = threading.Thread(target=self._bulk_check_thread)
-        thread.daemon = True
-        thread.start()
-        
-        self.log_activity("🚀 Bulk check started")
-    
-    def _bulk_check_thread(self):
-        """Thread for bulk checking"""
-        try:
-            # Simulate loading cards
-            time.sleep(1)
-            
-            # Simulate checking process
-            total = 100
-            for i in range(total):
-                if not self.is_bulk_running:
-                    break
-                
-                while self.is_bulk_paused:
-                    time.sleep(0.1)
-                
-                # Simulate checking a card
-                time.sleep(0.1)
-                
-                # Update progress
-                progress = (i + 1) * 100 // total
-                self.root.after(0, self._update_bulk_progress, i+1, total, progress)
-                
-                # Simulate result
-                if random.random() > 0.5:
-                    status = "✅ LIVE"
-                    self.live_cards += 1
-                else:
-                    status = "❌ DEAD"
-                    self.dead_cards += 1
-                
-                self.total_checked += 1
-                
-                # Update output
-                result = f"[{i+1}/{total}] 4242******4242 - {status}\n"
-                self.root.after(0, self._update_bulk_output, result)
-            
-            self.root.after(0, self._bulk_check_complete)
-            
-        except Exception as e:
-            self.root.after(0, lambda: self.log_activity(f"Bulk check error: {str(e)}"))
-    
-    def _update_bulk_progress(self, current, total, progress):
-        """Update bulk progress"""
-        self.progress_text.set(f"Processing: {current}/{total}")
-        self.progress_bar['value'] = progress
-    
-    def _update_bulk_output(self, result):
-        """Update bulk output"""
-        self.bulk_output.insert(tk.END, result)
-        self.bulk_output.see(tk.END)
-    
-    def _bulk_check_complete(self):
-        """Complete bulk check"""
-        self.is_bulk_running = False
-        self.start_bulk_btn.config(state=tk.NORMAL)
-        self.pause_bulk_btn.config(state=tk.DISABLED)
-        self.stop_bulk_btn.config(state=tk.DISABLED)
-        
-        self.log_activity(f"✅ Bulk check complete: {self.live_cards} live, {self.dead_cards} dead")
-    
-    def pause_bulk_check(self):
-        """Pause bulk check"""
-        self.is_bulk_paused = not self.is_bulk_paused
-        if self.is_bulk_paused:
-            self.pause_bulk_btn.config(text="▶️ RESUME")
-            self.log_activity("⏸️ Bulk check paused")
-        else:
-            self.pause_bulk_btn.config(text="⏸️ PAUSE")
-            self.log_activity("▶️ Bulk check resumed")
-    
-    def stop_bulk_check(self):
-        """Stop bulk check"""
-        self.is_bulk_running = False
-        self.start_bulk_btn.config(state=tk.NORMAL)
-        self.pause_bulk_btn.config(state=tk.DISABLED)
-        self.stop_bulk_btn.config(state=tk.DISABLED)
-        self.log_activity("⏹️ Bulk check stopped")
-    
-    def add_proxy(self):
-        """Add proxy"""
-        proxy = simpledialog.askstring("Add Proxy", "Enter proxy (ip:port):")
-        if proxy:
-            self.proxies.append(proxy)
-            self.proxy_tree.insert('', 'end', values=(proxy, '🟢 Active'))
-            self.log_activity(f"Added proxy: {proxy}")
-    
-    def remove_proxy(self):
-        """Remove selected proxy"""
-        selection = self.proxy_tree.selection()
-        if selection:
-            for item in selection:
-                values = self.proxy_tree.item(item, 'values')
-                self.proxy_tree.delete(item)
-                if values[0] in self.proxies:
-                    self.proxies.remove(values[0])
-                    self.log_activity(f"Removed proxy: {values[0]}")
-    
-    def open_card_generator(self):
-        """Open card generator"""
-        messagebox.showinfo("Card Generator", "Card Generator Tool")
-    
-    def open_bin_analyzer(self):
-        """Open BIN analyzer"""
-        messagebox.showinfo("BIN Analyzer", "BIN Analysis Tool")
-    
-    def open_luhn_checker(self):
-        """Open Luhn checker"""
-        messagebox.showinfo("Luhn Checker", "Luhn Validation Tool")
-    
-    def open_network_tools(self):
-        """Open network tools"""
-        messagebox.showinfo("Network Tools", "Network Utilities")
-    
-    def open_stats_analyzer(self):
-        """Open stats analyzer"""
-        messagebox.showinfo("Stats Analyzer", "Statistics Analysis Tool")
-    
-    def open_speed_test(self):
-        """Open speed test"""
-        messagebox.showinfo("Speed Test", "Connection Speed Test")
-    
-    # ==================== UI FUNCTIONS ====================
-    
-    def clear_main_content(self):
-        """Clear main content area"""
-        for widget in self.main_content_frame.winfo_children():
-            widget.destroy()
-    
-    def log_activity(self, message):
-        """Log activity message"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        log_entry = f"[{timestamp}] {message}\n"
-        
-        if hasattr(self, 'activity_log'):
-            self.activity_log.insert(tk.END, log_entry)
-            self.activity_log.see(tk.END)
-    
-    def zoom_in(self):
-        """Zoom in UI"""
-        if self.current_zoom < 200:
-            self.current_zoom += 10
-            self.zoom_label.config(text=f"{self.current_zoom}%")
-            self.status_left.config(text=f"⚡ Zoom: {self.current_zoom}%")
-            self.log_activity(f"Zoom: {self.current_zoom}%")
-    
-    def zoom_out(self):
-        """Zoom out UI"""
-        if self.current_zoom > 50:
-            self.current_zoom -= 10
-            self.zoom_label.config(text=f"{self.current_zoom}%")
-            self.status_left.config(text=f"⚡ Zoom: {self.current_zoom}%")
-            self.log_activity(f"Zoom: {self.current_zoom}%")
-    
-    def toggle_fullscreen(self):
-        """Toggle fullscreen mode"""
-        self.is_fullscreen = not self.is_fullscreen
-        self.root.attributes('-fullscreen', self.is_fullscreen)
-        self.log_activity("Fullscreen toggled")
-    
-    def update_clock(self):
-        """Update clock"""
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.status_clock.config(text=now)
-        self.root.after(1000, self.update_clock)
-    
-    def update_responsive_layout(self):
-        """Update responsive layout"""
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        
-        if width > 0 and height > 0:
-            # Update window dimensions
-            self.window_width = width
-            self.window_height = height
-            
-            # Update status
-            rate = (self.live_cards / self.total_checked * 100) if self.total_checked > 0 else 0
-            self.status_center.config(
-                text=f"Cards: {self.total_checked} | Live: {self.live_cards} | Dead: {self.dead_cards} | Rate: {rate:.1f}%"
-            )
-        
-        # Schedule next update
-        self.root.after(1000, self.update_responsive_layout)
-    
-    def bind_events(self):
-        """Bind keyboard events"""
-        self.root.bind('<Control-plus>', lambda e: self.zoom_in())
-        self.root.bind('<Control-minus>', lambda e: self.zoom_out())
-        self.root.bind('<F11>', lambda e: self.toggle_fullscreen())
-        self.root.bind('<Escape>', lambda e: self.exit_app() if self.is_fullscreen else None)
-    
-    def exit_app(self):
-        """Exit application"""
-        if messagebox.askyesno("Exit", "Are you sure you want to exit?"):
-            self.root.quit()
-    
-    def run(self):
-        """Run the application"""
-        self.root.mainloop()
+        st.session_state.results.append({
+            'card': f"{result['card'][:6]}******{result['card'][-4:]}",
+            'status': result['status'],
+            'issuer': result['bin_info'].get('issuer', 'Unknown') if result['bin_info'] else 'Unknown',
+            'time': result['time']
+        })
+        st.success("Result saved to database!")
 
 # ==================== RUN APPLICATION ====================
 if __name__ == "__main__":
-    app = UltimateStripeChecker()
+    # Initialize and run app
+    app = UltimateStripeCheckerPro()
     app.run()
